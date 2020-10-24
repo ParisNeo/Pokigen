@@ -1,0 +1,7 @@
+Changelog
+
+V 1.0
+------
+First run
+Added cnn_beta_vae version 1
+Added training code

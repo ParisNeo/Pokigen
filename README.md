@@ -7,3 +7,8 @@ The CNN beta-VAE structure features a
 
 The input of the autoencoder is a 128X128X3 image
 The output is also a 128X128X3 image
+
+The project is still in progress.
+
+The final objective is to be able to generate a pokemon image from the pokemon name and a random seed input.
+
