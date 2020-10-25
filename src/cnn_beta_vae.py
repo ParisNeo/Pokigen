@@ -42,7 +42,7 @@ class CNNBetaVAE(Callback):
     """
     CNN Beta Variational Encoder 128
     """
-    def __init__(self, image_shape, latent_size, beta, use_logvar=False):
+    def __init__(self, image_shape, latent_size, beta, model_weights_path = "model.h5", use_logvar=False):
         """
         Builds the model
         image_shape : The input Image Shape for example for an RGB picture of 128X128
@@ -51,11 +51,12 @@ class CNNBetaVAE(Callback):
         beta : The weight to apply on the KL divergence (like in the beta vae paper)
         """
         # Save parameters
-        self.loss_buffer =[]
+        self.reset_buffers()
         self.image_shape = image_shape
         self.latent_size = latent_size
         self.beta = beta
         self.use_logvar =use_logvar
+        self.model_weights_path = model_weights_path
             
         # Build encoder
         input_data = Input(image_shape,name="input")
@@ -92,7 +93,7 @@ class CNNBetaVAE(Callback):
         # Build models
         self.encoder=Model(input_data,[encoded_mean,encoded_sig,encoded_Data], name="encoder")
         self.decoder=Model(latent_input,decoded, name="decoder")
-        self.bvae=Model(input_data,self.decoder(self.encoder(input_data)[2]), name="ae")
+        self.bvae=Model(input_data,self.decoder(self.encoder(input_data)[2]), name="bvae")
 
         def ae_loss(y_true, y_pred):
             reconstruction_loss = K.mean(K.square(y_true-y_pred))
@@ -107,8 +108,27 @@ class CNNBetaVAE(Callback):
         self.encoder.summary()
         self.decoder.summary()
         self.bvae.summary()
-    
-    def load_images(self, database_path):
+
+    # ============ Weights loading/storing methods ==================
+    def load_weights(self, model_weights_file):
+        """
+        Loads a weights file
+        (without the right weights the network is useless and need
+        to be retrained)
+        model_weights_file : The file containing the weights to be used
+        """
+        self.bvae.load_weights(model_weights_file)
+
+    def save_weights(self, model_weights_file):
+        """
+        Saves weights to a weights file
+        model_weights_file : The file in which to store the weights
+        """
+        self.bvae.load_weights(model_weights_file)
+
+    # =========  Data manipulation methods ==============
+
+    def load_images(self, database_path, return_image_file_names=False):
         """
         Loads the database of images and reshape them according to the needed format
         database_path.
@@ -131,8 +151,11 @@ class CNNBetaVAE(Callback):
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             images.append(np.reshape(cv2.resize(img,(self.image_shape[0],self.image_shape[1])),(1,self.image_shape[0],self.image_shape[1],self.image_shape[2])))
         images=(np.vstack(images))
-        return images
 
+        if return_image_file_names:
+            return images, image_files
+        else:
+            return images
 
     def preprocess_images(self, images):
         """
@@ -161,10 +184,14 @@ class CNNBetaVAE(Callback):
         outputs=((outputs+1)/2)*255
         return outputs
 
+    # =================== Reparameterization Trick !! It's a VAE ================
     def sampling(self, args):
         """
-        Reparameterization trick by sampling fr an isotropic unit Gaussian.
-
+        Reparameterization trick by sampling for an isotropic unit Gaussian.
+        To be able to back propagate through a sampling step, this trick consists
+        in changing Q(z|x) to be z_mean+z_sig*N(0,1) or z_mean+exp(0.5*z_logvar)*N(0,1)
+        depending on wether you use standard deviation or logvariance when computing
+        the statistics in your latent space 
         # Arguments
             args : (z_mean,z_sig)
                     z_mean     : mean of Q(z|X)
@@ -184,20 +211,22 @@ class CNNBetaVAE(Callback):
         else:
             return  z_mean + z_sig * epsilon        
 
-    def reset_buffers(self):
-        """
-        Resets the statistics buffers
-        """
-        self.loss_buffer=[]
-        self.accuracy_buffer=[]
-        self.learning_encoding_buffer=[]
-        self.epoch=0
 
-    
-    def learn(self, images, epochs):
+    # ========== Network Learning and predicting ==================
+    def learn(self, images, epochs=500, validation_split=0.2):
         # Fit unsupervised
         print("Fitting auto encoder")
-        self.bvae.fit(images,images, validation_data=(images, images),  epochs=epochs, callbacks=[self, EarlyStopping(patience=200), ModelCheckpoint("model.h5",save_best_only=True)])
+        self.bvae.fit(
+            images,
+            images, 
+            validation_split=validation_split,  
+            epochs=epochs, 
+            callbacks=[
+                self, 
+                EarlyStopping(patience=200), 
+                ModelCheckpoint(self.model_weights_path,save_best_only=True)
+                ]
+        )
 
     def predict(self, landmarks):
         return self.bvae.predict(landmarks)
@@ -206,13 +235,18 @@ class CNNBetaVAE(Callback):
         decoded = self.bvae.predict(image)
         return decoded
 
+    # =========== Learning Callbacks ================================ 
+    def reset_buffers(self):
+        """
+        Resets the statistics buffers
+        """
+        self.loss_buffer=[]
+        self.val_loss_buffer=[]
+        self.learning_encoding_buffer=[]
+        self.epoch=0
 
     def on_epoch_end(self, epoch, logs=None):
         self.epoch=epoch
         self.loss_buffer.append(logs["loss"])
+        self.val_loss_buffer.append(logs["val_loss"])
 
-    def load(self, filename):
-        self.encoder.load_weights(filename)
-        
-    def save(self, filename):
-        self.encoder.save_weights(filename)

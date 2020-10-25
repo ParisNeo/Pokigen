@@ -130,3 +130,6 @@ dmypy.json
 
 # Ignore database folder
 database/
+# Ignore models folder
+models/
+notebooks/model.h5

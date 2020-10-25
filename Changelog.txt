@@ -1,4 +1,7 @@
 Changelog
+V 1.1
+------
+Upgraded code to simplify the operations
 
 V 1.0
 ------

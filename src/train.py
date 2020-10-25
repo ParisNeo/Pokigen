@@ -35,18 +35,18 @@ def main():
     """
     Main code to train the Pokigen CNN Beta VAE network
     """
-    cnn = CNNBetaVAE((128,128,3),128,10)
+    cnnbvae = CNNBetaVAE((128,128,3),128,10)
 
     # Check if the weights file exists and that the reset option was not issued
     if os.path.exists(args.model_weights_file) and not args.restart:
-        cnn.bvae.load_weights(args.model_weights_file)
+        cnnbvae.load_weights(args.model_weights_file)
     
 
     # Load training/validation database and preprocess it
-    images = cnn.preprocess_images(cnn.load_images(args.database))
+    images = cnnbvae.preprocess_images(cnnbvae.load_images(args.database))
 
     # Train the network
-    cnn.learn(images, epochs=args.epochs)
+    cnnbvae.learn(images, epochs=args.epochs)
 
     
 
