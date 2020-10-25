@@ -63,8 +63,6 @@ class CNNBetaVAE(Callback):
         input_data = Input(image_shape,name="input")
         x = self.encoderProcessingBlock(64,input_data)
         x = self.encoderProcessingBlock(128,x)
-        x = self.encoderProcessingBlock(256,x)
-        x = self.encoderProcessingBlock(512,x)
         x = Flatten()(x)
         # Reparametrization trick
         self.encoded_mean = Dense(latent_size)(x)
@@ -73,10 +71,8 @@ class CNNBetaVAE(Callback):
 
         # Decoder
         latent_input=Input((latent_size))
-        x = Dense(4*4,activation="relu")(latent_input)
-        x = Reshape((4,4,1))(x)
-        x = self.decoderProcessingBlock(512,x)
-        x = self.decoderProcessingBlock(256,x)
+        x = Dense(16*16,activation="relu")(latent_input)
+        x = Reshape((16,16,1))(x)
         x = self.decoderProcessingBlock(128,x)
         x = self.decoderProcessingBlock(64,x)
         x = self.decoderProcessingBlock(3,x)
@@ -94,7 +90,7 @@ class CNNBetaVAE(Callback):
         self.encoder.summary()
         self.decoder.summary()
         self.bvae.summary()
-
+    
     def loss(self, y_true, y_pred):
         """
         Loss function
@@ -102,9 +98,10 @@ class CNNBetaVAE(Callback):
         reconstruction loss : to ensure tha capability of the network to reproduce the images
         kl loss : to force the latent space to have a tight distribution 
         """
-        reconstruction_loss = K.mean(K.square(y_true-y_pred))
+        reconstruction_loss = K.mean(K.abs(y_true-y_pred))
         kl_loss = -0.5 * K.mean(1 + K.log(K.square(self.encoded_sig)) - tf.square(self.encoded_sig) - tf.square(self.encoded_mean))
         return reconstruction_loss + self.beta* kl_loss
+
 
     def encoderProcessingBlock(self, nb_kernels,inp, reduction_factor=2):
         x = Conv2D(nb_kernels,(3,3), padding="same")(inp)
@@ -184,7 +181,7 @@ class CNNBetaVAE(Callback):
         returns : The normalized images numpy array
         """
         # Normalize the images to be between -1 and 1
-        images=(images.astype(np.float32)/255.0)*2-1
+        images=images.astype(np.float32)/255.0
         return images
 
     def postprocess_outputs(self, outputs):
@@ -192,7 +189,7 @@ class CNNBetaVAE(Callback):
         Postprocesses the outputsto be usable as 
         regular 255 range RGB images 
         """
-        outputs=((outputs+1)/2)*255
+        outputs=outputs*255
         return outputs
 
     # =================== Reparameterization Trick !! It's a VAE ================

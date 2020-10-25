@@ -1,4 +1,9 @@
 Changelog
+
+V1.2
+------
+Enhanced Network structure
+Provided multiple versions of the network including a mobile net transfer learning based version
 V 1.1
 ------
 Upgraded code to simplify the operations

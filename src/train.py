@@ -9,7 +9,9 @@ Description :
 
 """
 import argparse
-from cnn_beta_vae import CNNBetaVAE
+#from cnn_beta_vae import CNNBetaVAE
+#from cnn_beta_vae import CNNBetaVAE
+from cnn_beta_vae_light import CNNBetaVAE
 import os
 
 # Preprare to parse arguments
@@ -28,14 +30,16 @@ if args.epochs is None:
     args.epochs = 500
 
 if args.model_weights_file is None:
-    args.model_weights_file = "../model/model_weights.h5"
+    args.model_weights_file = "../models/model_weights.h5"
 
+
+args.restart = True
 # Do the training process
 def main():
     """
     Main code to train the Pokigen CNN Beta VAE network
     """
-    cnnbvae = CNNBetaVAE((128,128,3),128,10)
+    cnnbvae = CNNBetaVAE((128,128,3),2,0.002,model_weights_path=args.model_weights_file)
 
     # Check if the weights file exists and that the reset option was not issued
     if os.path.exists(args.model_weights_file) and not args.restart:

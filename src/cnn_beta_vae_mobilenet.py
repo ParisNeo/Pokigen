@@ -27,12 +27,13 @@ import numpy as np
 
 # Tensorflow/Keras layers, models, backend and callbacks
 import tensorflow
-from tensorflow.keras.layers import Dense, Conv2D, Conv2DTranspose, Input, MaxPool2D, Flatten, UpSampling2D, Reshape, Lambda, Concatenate, BatchNormalization, Add
+from tensorflow.keras.layers import Add, Dense, Conv2D, Conv2DTranspose, Input, MaxPool2D, Flatten, UpSampling2D, Reshape, Lambda, Concatenate, BatchNormalization, Add
 from tensorflow.keras.activations import sigmoid, relu
 from tensorflow.keras.models import Model
+from tensorflow.keras.preprocessing import image_dataset_from_directory
+from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 import tensorflow.keras.backend as K
 import tensorflow as tf
-from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 tf.compat.v1.disable_eager_execution()
 
 # Open Cv for image manipulation and preproicessing
@@ -61,10 +62,16 @@ class CNNBetaVAE(Callback):
             
         # Build encoder
         input_data = Input(image_shape,name="input")
-        x = self.encoderProcessingBlock(64,input_data)
-        x = self.encoderProcessingBlock(128,x)
-        x = self.encoderProcessingBlock(256,x)
-        x = self.encoderProcessingBlock(512,x)
+        # Transfer learning from XCeption
+        base_model = tensorflow.keras.applications.MobileNet(
+            weights='imagenet',  # Load weights pre-trained on ImageNet.
+            input_shape=image_shape,
+            include_top=False)  # Do not include the ImageNet classifier at the top.
+        # Freese base model
+        base_model.trainable=False
+
+        # Build encoder
+        x= base_model(input_data)
         x = Flatten()(x)
         # Reparametrization trick
         self.encoded_mean = Dense(latent_size)(x)
@@ -148,6 +155,8 @@ class CNNBetaVAE(Callback):
         return : A numpy array of size batch, width, height, channels containing a stacking of all loaded image files
         """
 
+
+
         image_files = sorted([f for f in os.listdir(database_path) if f.lower().endswith(".png") or  f.lower().endswith(".jpg")])
         images=[]
         for pokemons_file in image_files:
@@ -162,9 +171,10 @@ class CNNBetaVAE(Callback):
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             images.append(np.reshape(cv2.resize(img,(self.image_shape[0],self.image_shape[1])),(1,self.image_shape[0],self.image_shape[1],self.image_shape[2])))
         images=(np.vstack(images))
-
+        
+        
         if return_image_file_names:
-            return images, image_files
+            return images, images.labels
         else:
             return images
 
@@ -183,8 +193,8 @@ class CNNBetaVAE(Callback):
 
         returns : The normalized images numpy array
         """
-        # Normalize the images to be between -1 and 1
-        images=(images.astype(np.float32)/255.0)*2-1
+        # Normalize the images to be between 0 and 1
+        images=images.astype(np.float32)/255.0
         return images
 
     def postprocess_outputs(self, outputs):
@@ -192,7 +202,7 @@ class CNNBetaVAE(Callback):
         Postprocesses the outputsto be usable as 
         regular 255 range RGB images 
         """
-        outputs=((outputs+1)/2)*255
+        outputs=outputs*255
         return outputs
 
     # =================== Reparameterization Trick !! It's a VAE ================
