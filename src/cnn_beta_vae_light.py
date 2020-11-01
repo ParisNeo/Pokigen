@@ -72,11 +72,14 @@ class CNNBetaVAE(RootCNNBetaVAE):
         latent_input=Input((latent_size))
         x = Dense(4*4,activation="tanh")(latent_input)
         x = Reshape((4,4,1))(x)
-        x = self.decoderProcessingBlock(x, 64, upscaling_factor=2)
-        x = self.decoderProcessingBlock(x, 64, upscaling_factor=2)
-        x = self.decoderProcessingBlock(x, 32, upscaling_factor=2)
-        x = self.decoderProcessingBlock(x, 16, upscaling_factor=2)
-        x = self.decoderProcessingBlock(x, 3, upscaling_factor=2)
+        x = self.decoderProcessingBlock(x, 8, upscaling_factor=2)
+        x = self.decoderProcessingBlock(x, 8, upscaling_factor=2)
+        x = self.decoderProcessingBlock(x, 8, upscaling_factor=2)
+        x = self.decoderProcessingBlock(x, 8, upscaling_factor=2)
+        x = self.decoderProcessingBlock(x, 8, upscaling_factor=2)
+        x = self.decoderProcessingBlock(x, 512)
+        
+        x = self.decoderProcessingBlock(x, 3)
         decoded = self.decoderProcessingBlock(x, 3)
         
 

@@ -41,10 +41,12 @@ if args.latent_size is None:
     args.latent_size = 27
     
 if args.net is None:
-    print("Using full network")
+    #print("Using full network")
     #from cnn_beta_vae import CNNBetaVAE
-    from cnn_beta_vae_mobilenet import CNNBetaVAE
-    #from cnn_beta_vae_light import CNNBetaVAE
+    #print("Using mobilenet based network")
+    #from cnn_beta_vae_mobilenet import CNNBetaVAE
+    print("Using light network")
+    from cnn_beta_vae_light import CNNBetaVAE
 else:
     if args.net=="cnn_beta_vae":
         print("Using full network")
