@@ -1,5 +1,11 @@
 Changelog
 
+V1.3
+------
+A more stable training by shifting from sigma to logvar in latent 
+space gaussian distribution samplig
+A more factorized coding style
+
 V1.2
 ------
 Enhanced Network structure

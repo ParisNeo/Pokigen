@@ -4,7 +4,10 @@ Author  : Saifeddine ALOUI
 Licence : MIT
 Description :
     This is a simple CNN based beta Variational auto encoder for
-    128X128X3 image generation
+    128X128X3 image generation.
+
+    The RootCNNBetaVAE class should be inherited and encoder and decoder models
+    should be defined. Use the children classes for your application
 
     The variational autoencoder encodes the images in a latent space as
     a random variable with gaussian distribution then decodes them back
@@ -39,9 +42,9 @@ tf.compat.v1.disable_eager_execution()
 import cv2
 
 
-class CNNBetaVAE(Callback):
+class RootCNNBetaVAE(Callback):
     """
-    CNN Beta Variational Encoder 128
+    CNN Beta Variational Encoder
     """
     def __init__(self, image_shape, latent_size, beta, model_weights_path = "model.h5", use_logvar=False):
         """
@@ -58,43 +61,7 @@ class CNNBetaVAE(Callback):
         self.beta = beta
         self.use_logvar =use_logvar
         self.model_weights_path = model_weights_path
-            
-        # Build encoder
-        input_data = Input(image_shape,name="input")
-        x = self.encoderProcessingBlock(64,input_data)
-        x = self.encoderProcessingBlock(128,x)
-        x = self.encoderProcessingBlock(256,x)
-        x = self.encoderProcessingBlock(512,x)
-        x = Flatten()(x)
-        # Reparametrization trick
-        self.encoded_mean = Dense(latent_size)(x)
-        self.encoded_sig = Dense(latent_size)(x)
-        self.encoded_Data = Lambda(self.sampling, output_shape=(latent_size,), name="Encoded")([self.encoded_mean, self.encoded_sig])
-
-        # Decoder
-        latent_input=Input((latent_size))
-        x = Dense(4*4,activation="relu")(latent_input)
-        x = Reshape((4,4,1))(x)
-        x = self.decoderProcessingBlock(512,x)
-        x = self.decoderProcessingBlock(256,x)
-        x = self.decoderProcessingBlock(128,x)
-        x = self.decoderProcessingBlock(64,x)
-        x = self.decoderProcessingBlock(3,x)
-        decoded=Conv2D(3,(25,25), activation="sigmoid", padding="same")(x)
-
-        # Build models
-        self.encoder=Model(input_data,[self.encoded_mean,self.encoded_sig,self.encoded_Data], name="encoder")
-        self.decoder=Model(latent_input,decoded, name="decoder")
-        self.bvae=Model(input_data,self.decoder(self.encoder(input_data)[2]), name="bvae")
-
-        # Compile the models and show some summaries
-        self.bvae.compile(loss=self.loss)
-
-        # Show the three main components the encoder, the decoder and the full VAE
-        self.encoder.summary()
-        self.decoder.summary()
-        self.bvae.summary()
-
+    
     def loss(self, y_true, y_pred):
         """
         Loss function
@@ -103,22 +70,59 @@ class CNNBetaVAE(Callback):
         kl loss : to force the latent space to have a tight distribution 
         """
         reconstruction_loss = K.mean(K.square(y_true-y_pred))
-        kl_loss = -0.5 * K.mean(1 + K.log(K.square(self.encoded_sig)) - tf.square(self.encoded_sig) - tf.square(self.encoded_mean))
+        if self.use_logvar :
+            kl_loss = - 0.5 * K.mean(1 + self.encoded_sig - K.square(self.encoded_mean) - K.exp(self.encoded_sig), axis=-1)
+        else:
+            kl_loss = -0.5 * K.mean(1 + K.log(K.square(self.encoded_sig)) - tf.square(self.encoded_sig) - tf.square(self.encoded_mean))
+
         return reconstruction_loss + self.beta* kl_loss
 
-    def encoderProcessingBlock(self, nb_kernels,inp, reduction_factor=2):
-        x = Conv2D(nb_kernels,(3,3), padding="same")(inp)
-        x = BatchNormalization()(x)
-        x = relu(x)
-        x = MaxPool2D((reduction_factor,reduction_factor))(x)
+
+    def encoderProcessingBlock(self, inp, nb_kernels, kernelsize=(3,3), reduction_factor=1, activation=relu, batch_normalize=False, is_residual=False):
+        """
+        An encoder processing block
+        inp : Input to be processed by the layer
+        nb_kernels : The number of kernels to apply in convolutional layer
+        kernel_size : The size of the kernel to be used in convolutional layer
+        reduction_factor : maxpooling factor (if 1 or less, maxpooling is not applyed)
+        activation : The activation function to be applied
+        batch_normalize : A boolean to tell if a batch normalization should be applied before activation
+        is_residual : A boolean to tell if this is a risidual block. Warning!! If True make sure that the 
+                      input and output sizes are exactly the same (no pooling and must have the same number of channels) 
+        """
+        x = Conv2D(nb_kernels,kernelsize, padding="same")(inp)
+        if batch_normalize:
+            x = BatchNormalization()(x)
+        x = activation(x)
+        if is_residual:
+            x = Add()([inp,x])
+
+        if reduction_factor>1:
+            x = MaxPool2D((reduction_factor,reduction_factor))(x)
         return x
 
-    def decoderProcessingBlock(self, nb_kernels,inp, upscaling_factor=2):
-        x = Conv2D(nb_kernels,(3,3), padding="same")(inp)
-        x = BatchNormalization()(x)
-        x = relu(x)
-        x = UpSampling2D((upscaling_factor,upscaling_factor))(x)
+    def decoderProcessingBlock(self, inp, nb_kernels, kernelsize=(3,3), upscaling_factor=1, activation=relu, batch_normalize=False, is_residual=False):
+        """
+        A decoder processing block
+        inp : Input to be processed by the layer
+        nb_kernels : The number of kernels to apply in convolutional layer
+        kernel_size : The size of the kernel to be used in convolutional layer
+        upscaling_factor : upscaling factor (if 1 or less, upscaling is not applyed)
+        activation : The activation function to be applied
+        batch_normalize : A boolean to tell if a batch normalization should be applied before activation
+        is_residual : A boolean to tell if this is a risidual block. Warning!! If True make sure that the 
+                      input and output sizes are exactly the same (no pooling and must have the same number of channels) 
+        """
+        x = Conv2D(nb_kernels,kernelsize, padding="same")(inp)
+        if batch_normalize:
+            x = BatchNormalization()(x)
+        x = activation(x)
+        if is_residual:
+            x = Add()([inp,x])
+        if upscaling_factor>1:
+            x = UpSampling2D((upscaling_factor,upscaling_factor))(x)
         return x
+
 
     # ============ Weights loading/storing methods ==================
     def load_weights(self, model_weights_file):
@@ -184,7 +188,7 @@ class CNNBetaVAE(Callback):
         returns : The normalized images numpy array
         """
         # Normalize the images to be between -1 and 1
-        images=(images.astype(np.float32)/255.0)*2-1
+        images=images.astype(np.float32)/255.0
         return images
 
     def postprocess_outputs(self, outputs):
@@ -192,7 +196,7 @@ class CNNBetaVAE(Callback):
         Postprocesses the outputsto be usable as 
         regular 255 range RGB images 
         """
-        outputs=((outputs+1)/2)*255
+        outputs=outputs*255
         return outputs
 
     # =================== Reparameterization Trick !! It's a VAE ================
@@ -261,3 +265,36 @@ class CNNBetaVAE(Callback):
         self.loss_buffer.append(logs["loss"])
         self.val_loss_buffer.append(logs["val_loss"])
 
+
+
+"""
+        # Build encoder
+        input_data = Input(image_shape,name="input")
+        x = self.encoderProcessingBlock(input_data, 64)
+        x = self.encoderProcessingBlock(x, 128)
+        x = Flatten()(x)
+        x = Dense(16*16,activation="tanh")(x)
+        # Reparametrization trick
+        self.encoded_mean = Dense(latent_size)(x)
+        self.encoded_sig = Dense(latent_size)(x)
+        self.encoded_Data = Lambda(self.sampling, output_shape=(latent_size,), name="Encoded")([self.encoded_mean, self.encoded_sig])
+        
+        # Decoder
+        latent_input=Input((latent_size))
+        x = Dense(16*16,activation="tanh")(latent_input)
+        x = Reshape((16,16,1))(x)
+        x = self.decoderProcessingBlock(x,32, upscaling_factor=2)
+        x_r = self.decoderProcessingBlock(x,64, upscaling_factor=2)
+        x_g = self.decoderProcessingBlock(x,64, upscaling_factor=2)
+        x_b = self.decoderProcessingBlock(x,64, upscaling_factor=2)
+
+        x_r = self.decoderProcessingBlock(x_r,128, upscaling_factor=2)
+        x_g = self.decoderProcessingBlock(x_g,128, upscaling_factor=2)
+        x_b = self.decoderProcessingBlock(x_b,128, upscaling_factor=2)
+        
+        x_r = self.decoderProcessingBlock(x_r,1, upscaling_factor=1)
+        x_g = self.decoderProcessingBlock(x_g,1, upscaling_factor=1)
+        x_b = self.decoderProcessingBlock(x_b,1, upscaling_factor=1)
+        decoded = Concatenate(axis=3)([x_r,x_g,x_b])
+
+"""

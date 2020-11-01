@@ -57,12 +57,17 @@ class CNNBetaVAE(RootCNNBetaVAE):
             
         # Build encoder
         input_data = Input(image_shape,name="input")
-        x = self.encoderProcessingBlock(input_data, 3, reduction_factor=2)
-        x = self.encoderProcessingBlock(x, 16, reduction_factor=2)
-        x = self.encoderProcessingBlock(x, 32, reduction_factor=2)
-        x = self.encoderProcessingBlock(x, 64, reduction_factor=2)
+        x = self.encoderProcessingBlock(input_data, 3)
+        x = self.encoderProcessingBlock(x, 3, is_residual=True)
+        x = self.encoderProcessingBlock(x, 16)
+        x = self.encoderProcessingBlock(x, 16, reduction_factor=2, is_residual=True)
+        x = self.encoderProcessingBlock(x, 32)
+        x = self.encoderProcessingBlock(x, 32, reduction_factor=2, is_residual=True)
+        x = self.encoderProcessingBlock(x, 64)
+        x = self.encoderProcessingBlock(x, 64, reduction_factor=2, is_residual=True)
+        x = self.encoderProcessingBlock(x, 128, reduction_factor=2)
         x = Flatten()(x)
-        x = Dense(4*4,activation="tanh")(x)
+        x = Dense(16*16,activation="tanh")(x)
         # Reparametrization trick
         self.encoded_mean = Dense(latent_size)(x)
         self.encoded_sig = Dense(latent_size)(x)
@@ -70,13 +75,18 @@ class CNNBetaVAE(RootCNNBetaVAE):
 
         # Decoder
         latent_input=Input((latent_size))
-        x = Dense(4*4,activation="tanh")(latent_input)
-        x = Reshape((4,4,1))(x)
-        x = self.decoderProcessingBlock(x, 64, upscaling_factor=2)
-        x = self.decoderProcessingBlock(x, 64, upscaling_factor=2)
-        x = self.decoderProcessingBlock(x, 32, upscaling_factor=2)
-        x = self.decoderProcessingBlock(x, 16, upscaling_factor=2)
-        x = self.decoderProcessingBlock(x, 3, upscaling_factor=2)
+        x = Dense(16*16,activation="tanh")(latent_input)
+        x = Reshape((16,16,1))(x)
+        x = self.decoderProcessingBlock(x, 128)
+        x = self.decoderProcessingBlock(x, 128, is_residual=True)
+        x = self.decoderProcessingBlock(x, 64)
+        x = self.decoderProcessingBlock(x, 64, upscaling_factor=2, is_residual=True)
+        x = self.decoderProcessingBlock(x, 32)
+        x = self.decoderProcessingBlock(x, 32, upscaling_factor=2, is_residual=True)
+        x = self.decoderProcessingBlock(x, 16)
+        x = self.decoderProcessingBlock(x, 16, upscaling_factor=2, is_residual=True)
+        x = self.encoderProcessingBlock(x, 3)
+        x = self.encoderProcessingBlock(x, 3, is_residual=True)
         decoded = self.decoderProcessingBlock(x, 3)
         
 
